@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <title>Turnstile Pre-Clearance Demo </title>
+</head>
+<body>
+  <main class="pre-clearance-demo">
+    <h2>Pre-clearance Demo</h2>
+    <button id="fetchBtn">Fetch Data</button>
+    <div id="response"></div>
+</main>
+
+<script>
+  const button = document.getElementById('fetchBtn');
+  const responseDiv = document.getElementById('response');
+  button.addEventListener('click', async () => {
+  try {
+    let result = await fetch('/tapi/demo.php');
+    if (result.ok) {
+      let data = await result.json();
+      responseDiv.textContent = JSON.stringify(data);
+    } else {
+      responseDiv.textContent = 'Error fetching data';
+    }
+  } catch (error) {
+    responseDiv.textContent = 'Network error';
+  }
+});
+</script>
+
+<script>
+turnstileLoad = function () {
+  // Save a reference to the original fetch function
+  const originalFetch = window.fetch;
+
+  // A simple modal to contain Cloudflare Turnstile
+  const overlay = document.createElement('div');
+  overlay.style.position = 'fixed';
+  overlay.style.top = '0';
+  overlay.style.left = '0';
+  overlay.style.right = '0';
+  overlay.style.bottom = '0';
+  overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+  overlay.style.border = '1px solid grey';
+  overlay.style.zIndex = '10000';
+  overlay.style.display = 'none';
+  overlay.innerHTML =       '<p style="color: white; text-align: center; margin-top: 50vh;">One more step before you proceed...</p><div style=”display: flex; flex-wrap: nowrap; align-items: center; justify-content: center;” id="turnstile_widget"></div>';
+  document.body.appendChild(overlay);
+
+  // Override the native fetch function
+  window.fetch = async function (...args) {
+      let response = await originalFetch(...args);
+
+      // If the original request was challenged...
+      if (response.headers.has('cf-mitigated') && response.headers.get('cf-mitigated') === 'challenge') {
+          // The request has been challenged...
+          overlay.style.display = 'block';
+
+          await new Promise((resolve, reject) => {
+              turnstile.render('#turnstile_widget', {
+                  'sitekey': '0x4AAAAAAAiocgNNeYwf7_11',
+                  'error-callback': function (e) {
+                      overlay.style.display = 'none';
+                      reject(e);
+                  },
+                  'callback': function (token, preClearanceObtained) {
+                      if (preClearanceObtained) {
+                          // The visitor successfully solved the challenge on the page.
+                          overlay.style.display = 'none';
+                          resolve();
+                      } else {
+                          reject(new Error('Unable to obtain pre-clearance'));
+                      }
+                  },
+              });
+          });
+
+          // Replay the original fetch request, this time it will have the cf_clearance Cookie
+          response = await originalFetch(...args);
+      }
+      return response;
+  };
+};
+</script>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=turnstileLoad" async defer></script>
