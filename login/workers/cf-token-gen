@@ -1,0 +1,49 @@
+// src/index.ts
+var encoder = new TextEncoder();
+var src_default = {
+  async fetch(request, env) {
+    const EXPIRY = env.TOKEN_EXPIRY ?? 60;
+    const secretKeyData = encoder.encode(env.TOKEN_KEY ?? "my secret symmetric key");
+    const key = await crypto.subtle.importKey(
+      "raw",
+      secretKeyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    );
+    const url = new URL(request.url); 
+    const cookieHeader = request.headers.get("cookie");
+    let cf_bm = "";
+    if (cookieHeader) {
+      const cookies = cookieHeader.split(";").reduce((acc, cookie) => {
+        const [name, ...val] = cookie.split("=");
+        if (name && name.trim()) {
+          acc[name.trim()] = val.join("=").trim();
+        }
+        return acc;
+      }, {});
+      cf_bm = cookies["__cf_bm"] ?? "";
+    }
+    if (!cf_bm) {
+      return Response.redirect(url.toString(), 302);
+    }
+    const timestamp = Math.floor(Date.now() / 1e3);
+    const dataToAuthenticate = `${cf_bm}${timestamp}`;
+    const mac = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      encoder.encode(dataToAuthenticate)
+    );
+    const base64Mac = btoa(String.fromCharCode(...new Uint8Array(mac)));
+    const tokenCookie = `__CF_TOKEN__=${timestamp}-${base64Mac}; HttpOnly; Secure; Path=/; Max-Age=${EXPIRY}`;
+    console.log("tokenCookie:", tokenCookie);
+    const response = await fetch(url.toString(), request);
+    const updatedResponse = new Response(response.body, response);
+    updatedResponse.headers.append("Set-Cookie", tokenCookie);
+    return updatedResponse;
+  }
+};
+export {
+  src_default as default
+};
+//# sourceMappingURL=index.js.map
