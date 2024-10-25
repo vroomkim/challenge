@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login Page</title>
+<style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .login-container {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+      width: 300px;
+    }
+    .login-container h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .login-container input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .login-container button {
+      width: 100%;
+      padding: 10px;
+      background-color: #28a745;
+      border: none;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .login-container button:hover {
+      background-color: #218838;
+    }
+    .message {
+      text-align: center;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="login-container">
+<h2>Login</h2>
+<form id="login-form">
+<input type="text" id="username" name="username" placeholder="Username" required>
+<input type="password" id="password" name="password" placeholder="Password" required>
+<button type="submit">Login</button>
+</form>
+<div class="message" id="message"></div>
+</div>
+
+<script type="text/javascript">
+    // Intercepting XMLHttpRequest
+    (function(open) {
+      XMLHttpRequest.prototype.open = function(method, url, async, user, pass) {
+        this.addEventListener("load", function() {
+          // Monitor the response status code
+          if (this.status === 412) {
+            // Force a page reload if the response status is 412
+            window.history.replaceState(null, '', window.location.href);
+            window.location.reload();
+          }
+        });
+        open.call(this, method, url, async, user, pass);
+      };
+    })(XMLHttpRequest.prototype.open);
+
+    // Fetch Overload
+    (function(originalFetch) {
+      window.fetch = async function(...args) {
+          console.log('Fetching:', arg[0]);
+
+	  // Perform the fetch call
+	  const response = await originalFetch(...args);
+
+          // Check for 412 status and reload the page if needed
+          if (response.status === 412) {
+              console.warn('412 status detected, reloading the page...');
+              window.history.replaceState(null, '', window.location.href);
+              window.location.reload();
+          }
+
+          // Optionally, you can inspect or modify the response
+          if (!response.ok && response.status !== 412) {
+              console.error(`Fetch failed with status: ${response.status}`);
+          }
+
+          return response;
+        };
+    })(window.fetch);
+
+    // Handle form submission for login
+    document.getElementById('login-form').addEventListener('submit', async function(event) {
+      event.preventDefault(); // Prevent form from refreshing the page
+      
+      // Get the username and password values
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      // Display loading message
+      const messageDiv = document.getElementById('message');
+      messageDiv.textContent = "Logging in...";
+
+      // Prepare the login data
+      const loginData = {
+        username: username,
+        password: password
+      };
+
+      try {
+          // Send the login data to the API using Fetch
+          const response = await fetch('https://gcp.stephenkim.site/api/login.php', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(loginData)
+          });
+	  if (!response.ok) {
+            throw new Error('Network response was not ok');
+	  }
+	  const data = await response.json();
+
+          if (data.success) {
+            // Login successful
+            messageDiv.textContent = `Welcome, ${username}!`;
+            messageDiv.style.color = "green";
+          
+            // Optionally, redirect to another page
+            // window.location.href = '/dashboard';
+          } else {
+            // Login failed
+            messageDiv.textContent = "Login failed. Please check your username or password.";
+            messageDiv.style.color = "red";
+          }
+      } catch(error) {
+        // Handle any errors
+        console.error('Error:', error);
+        messageDiv.textContent = "An error occurred. Please try again later.";
+        messageDiv.style.color = "red";
+      }
+    });
+  </script>
+</body>
+</html>
